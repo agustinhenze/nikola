@@ -35,10 +35,14 @@ from nikola import utils
 from nikola.plugin_categories import Task
 
 
-class RenderRSS(Task):
+class GenerateRSS(Task):
     """Generate RSS feeds."""
 
-    name = "render_rss"
+    name = "generate_rss"
+
+    def set_site(self, site):
+        site.register_path_handler('rss', self.rss_path)
+        return super(GenerateRSS, self).set_site(site)
 
     def gen_tasks(self):
         """Generate RSS feeds."""
@@ -54,6 +58,7 @@ class RenderRSS(Task):
             "feed_length": self.site.config['FEED_LENGTH'],
         }
         self.site.scan_posts()
+        yield self.group_task()
         for lang in kw["translations"]:
             output_name = os.path.join(kw['output_folder'],
                                        self.site.path("rss", None, lang))
@@ -68,7 +73,7 @@ class RenderRSS(Task):
 
             feed_url = urljoin(self.site.config['BASE_URL'], self.site.link("rss", None, lang).lstrip('/'))
             yield {
-                'basename': 'render_rss',
+                'basename': 'generate_rss',
                 'name': os.path.normpath(output_name),
                 'file_dep': deps,
                 'targets': [output_name],
@@ -80,3 +85,7 @@ class RenderRSS(Task):
                 'clean': True,
                 'uptodate': [utils.config_changed(kw)],
             }
+
+    def rss_path(self, name, lang):
+        return [_f for _f in [self.site.config['TRANSLATIONS'][lang],
+                              self.site.config['RSS_PATH'], 'rss.xml'] if _f]

@@ -28,6 +28,7 @@
 
 import codecs
 import os
+import re
 
 try:
     import bbcode
@@ -35,9 +36,10 @@ except ImportError:
     bbcode = None  # NOQA
 
 from nikola.plugin_categories import PageCompiler
+from nikola.utils import makedirs, req_missing
 
 
-class CompileTextile(PageCompiler):
+class CompileBbcode(PageCompiler):
     """Compile bbcode into HTML."""
 
     name = "bbcode"
@@ -50,17 +52,13 @@ class CompileTextile(PageCompiler):
 
     def compile_html(self, source, dest, is_two_file=True):
         if bbcode is None:
-            raise Exception('To build this site, you need to install the '
-                            '"bbcode" package.')
-        try:
-            os.makedirs(os.path.dirname(dest))
-        except:
-            pass
+            req_missing(['bbcode'], 'build this site (compile BBCode)')
+        makedirs(os.path.dirname(dest))
         with codecs.open(dest, "w+", "utf8") as out_file:
             with codecs.open(source, "r", "utf8") as in_file:
                 data = in_file.read()
             if not is_two_file:
-                data = data.split('\n\n', 1)[-1]
+                data = re.split('(\n\n|\r\n\r\n)', data, maxsplit=1)[-1]
             output = self.parser.format(data)
             out_file.write(output)
 
@@ -68,9 +66,7 @@ class CompileTextile(PageCompiler):
         metadata = {}
         metadata.update(self.default_metadata)
         metadata.update(kw)
-        d_name = os.path.dirname(path)
-        if not os.path.isdir(d_name):
-            os.makedirs(os.path.dirname(path))
+        makedirs(os.path.dirname(path))
         with codecs.open(path, "wb+", "utf8") as fd:
             if onefile:
                 fd.write('[note]<!--\n')

@@ -26,6 +26,7 @@
 
 from __future__ import unicode_literals
 import glob
+import itertools
 import os
 
 from nikola.plugin_categories import Task
@@ -37,8 +38,13 @@ class Indexes(Task):
 
     name = "render_indexes"
 
+    def set_site(self, site):
+        site.register_path_handler('index', self.index_path)
+        return super(Indexes, self).set_site(site)
+
     def gen_tasks(self):
         self.site.scan_posts()
+        yield self.group_task()
 
         kw = {
             "translations": self.site.config['TRANSLATIONS'],
@@ -124,15 +130,15 @@ class Indexes(Task):
         }
         template_name = "list.tmpl"
         for lang in kw["translations"]:
-            for wildcard, dest, _, is_post in kw["post_pages"]:
-                if is_post:
-                    continue
+            # Need to group by folder to avoid duplicated tasks (Issue #758)
+            for dirname, wildcards in itertools.groupby((w for w, d, x, i in kw["post_pages"] if not i), os.path.dirname):
                 context = {}
                 # vim/pyflakes thinks it's unused
                 # src_dir = os.path.dirname(wildcard)
-                files = glob.glob(wildcard)
-                post_list = [self.site.global_data[os.path.splitext(p)[0]] for
-                             p in files]
+                files = []
+                for wildcard in wildcards:
+                    files += glob.glob(wildcard)
+                post_list = [self.site.global_data[p] for p in files]
                 output_name = os.path.join(kw["output_folder"],
                                            self.site.path("post_path",
                                                           wildcard,
@@ -148,3 +154,14 @@ class Indexes(Task):
                 task['uptodate'] = [config_changed(task_cfg)]
                 task['basename'] = self.name
                 yield task
+
+    def index_path(self, name, lang):
+        if name not in [None, 0]:
+            return [_f for _f in [self.site.config['TRANSLATIONS'][lang],
+                                  self.site.config['INDEX_PATH'],
+                                  'index-{0}.html'.format(name)] if _f]
+        else:
+            return [_f for _f in [self.site.config['TRANSLATIONS'][lang],
+                                  self.site.config['INDEX_PATH'],
+                                  self.site.config['INDEX_FILE']]
+                    if _f]

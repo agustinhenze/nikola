@@ -41,6 +41,10 @@ class Listings(Task):
 
     name = "render_listings"
 
+    def set_site(self, site):
+        site.register_path_handler('listing', self.listing_path)
+        return super(Listings, self).set_site(site)
+
     def gen_tasks(self):
         """Render pretty code listings."""
         kw = {
@@ -83,10 +87,11 @@ class Listings(Task):
             }
             self.site.render_template('listing.tmpl', out_name,
                                       context)
-        flag = True
+
+        yield self.group_task()
+
         template_deps = self.site.template_system.template_deps('listing.tmpl')
         for root, dirs, files in os.walk(kw['listings_folder']):
-            flag = False
             # Render all files
             out_name = os.path.join(
                 kw['output_folder'],
@@ -101,7 +106,7 @@ class Listings(Task):
                 # This is necessary to reflect changes in blog title,
                 # sidebar links, etc.
                 'uptodate': [utils.config_changed(
-                    self.site.config['GLOBAL_CONTEXT'])],
+                    self.site.GLOBAL_CONTEXT)],
                 'clean': True,
             }
             for f in files:
@@ -122,11 +127,10 @@ class Listings(Task):
                     # This is necessary to reflect changes in blog title,
                     # sidebar links, etc.
                     'uptodate': [utils.config_changed(
-                        self.site.config['GLOBAL_CONTEXT'])],
+                        self.site.GLOBAL_CONTEXT)],
                     'clean': True,
                 }
-        if flag:
-            yield {
-                'basename': self.name,
-                'actions': [],
-            }
+
+    def listing_path(self, name, lang):
+        return [_f for _f in [self.site.config['LISTINGS_FOLDER'], name +
+                              '.html'] if _f]

@@ -42,6 +42,11 @@ scripts = ['scripts/nikola']
 if platform_system == "Windows":
     scripts.append('scripts/nikola.bat')
 
+if sys.version_info[0] == 2 and sys.version_info[1] < 6:
+    raise Exception('Python 2 version < 2.6 is not supported')
+elif sys.version_info[0] == 3 and sys.version_info[1] < 3:
+    raise Exception('Python 3 version < 3.3 is not supported')
+
 ##################################################
 
 if sys.version_info[0] == 2:
@@ -71,26 +76,42 @@ def copy_messages():
         shutil.copytree(original_messages_directory, theme_messages_directory)
 
 
-def copy_hardlinked_for_windows():
-    """replaces the hardlinked files with a copy of the original content.
+def copy_symlinked_for_windows():
+    """replaces the symlinked files with a copy of the original content.
 
     In windows (msysgit), a symlink is converted to a text file with a
     path to the file it points to. If not corrected, installing from a git
-    clone will end with some files with bad content"""
+    clone will end with some files with bad content
 
+    After install the WC will be dirty (symlink markers rewroted with real
+    content)
+    """
+
+    # essentially nikola.utils.should_fix_git_symlinked inlined, to not
+    # fiddle with sys.path / import unless really needed
     if sys.platform != 'win32':
         return
-    # .txt in src, .rst in dst
-    stories_hardlinked = ['manual', 'creating-a-theme', 'theming']
-    localdir = os.path.dirname(__file__)
-    stories_directory = os.path.join(
-        localdir, 'nikola', 'data', 'samplesite', 'stories')
-    docs_directory = os.path.join(localdir, 'docs')
+    path = (os.path.dirname(__file__) +
+            r'nikola\data\samplesite\stories\theming.rst')
+    try:
+        if os.path.getsize(path) < 200:
+            pass
+        else:
+            return
+    except Exception:
+        return
 
-    for name in stories_hardlinked:
-        shutil.copy(
-            os.path.join(docs_directory, name + '.txt'),
-            os.path.join(stories_directory, name + '.rst'))
+    # apply the fix
+    localdir = os.path.dirname(__file__)
+    dst = os.path.join(localdir, 'nikola', 'data', 'samplesite')
+    src = dst
+    oldpath = sys.path[:]
+    sys.path.insert(0, os.path.join(localdir, 'nikola'))
+    winutils = __import__('winutils')
+    winutils.fix_git_symlinked(src, dst)
+    sys.path = oldpath
+    del sys.modules['winutils']
+    print('WARNING: your working copy is now dirty by changes in samplesite')
 
 
 def install_manpages(root, prefix):
@@ -122,7 +143,7 @@ def install_manpages(root, prefix):
 
 class nikola_install(install):
     def run(self):
-        copy_hardlinked_for_windows()
+        copy_symlinked_for_windows()
         install.run(self)
         install_manpages(self.root, self.prefix)
 
@@ -206,9 +227,11 @@ def find_package_data(
                 out.setdefault(package, []).append(prefix + name)
     return out
 
+
 setup(name='Nikola',
-      version='6.0.1',
-      description='Static blog/website generator',
+      version='6.2.1',
+      description='A modular, fast, simple, static website generator',
+      long_description=open('README.rst').read(),
       author='Roberto Alsina and others',
       author_email='ralsina@netmanagers.com.ar',
       url='http://getnikola.com',
@@ -219,7 +242,6 @@ setup(name='Nikola',
                 'nikola.plugins.compile',
                 'nikola.plugins.compile.ipynb',
                 'nikola.plugins.compile.markdown',
-                'nikola.plugins.compile.misaka',
                 'nikola.plugins.compile.rest',
                 'nikola.plugins.task',
                 'nikola.plugins.task.localsearch',
@@ -227,7 +249,27 @@ setup(name='Nikola',
                 'nikola.plugins.task.sitemap',
                 'nikola.plugins.template',
                 ],
+      license='MIT',
+      keywords='website, static',
       scripts=scripts,
+      classifiers=('Development Status :: 5 - Production/Stable',
+                   'Environment :: Console',
+                   'Environment :: Plugins',
+                   'Environment :: Web Environment',
+                   'Intended Audience :: End Users/Desktop',
+                   'License :: OSI Approved :: MIT License',
+                   'Operating System :: MacOS',
+                   'Operating System :: Microsoft :: Windows',
+                   'Operating System :: OS Independent',
+                   'Operating System :: POSIX',
+                   'Operating System :: Unix',
+                   'Programming Language :: Python',
+                   'Programming Language :: Python :: 2.6',
+                   'Programming Language :: Python :: 2.7',
+                   'Programming Language :: Python :: 3.3',
+                   'Topic :: Internet',
+                   'Topic :: Internet :: WWW/HTTP',
+                   'Topic :: Text Processing :: Markup'),
       install_requires=dependencies,
       package_data=find_package_data(),
       cmdclass={'install': nikola_install},

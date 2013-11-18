@@ -1,5 +1,6 @@
 ## -*- coding: utf-8 -*-
 <%namespace name="base" file="base_helper.tmpl" import="*"/>
+<%namespace name="annotations" file="annotation_helper.tmpl"/>
 ${set_locale(lang)}
 <!DOCTYPE html>
 <html
@@ -15,12 +16,12 @@ lang="${lang}">
 </head>
 <body>
     <h1 id="blog-title">
-        <a href="${abs_link('/')}" title="${blog_title}">${blog_title}</a>
+        <a href="${abs_link('/')}" title="${blog_title}" rel="home">${blog_title}</a>
     </h1>
     <%block name="belowtitle">
         %if len(translations) > 1:
         <small>
-            ${(messages("Also available in"))}:&nbsp;
+            ${messages("Also available in:")}&nbsp;
             ${base.html_translations()}
         </small>
     %endif
@@ -36,6 +37,4 @@ lang="${lang}">
     </ul>
     ${base.late_load_js()}
     ${social_buttons_code}
-    <%block name="extra_js"></%block>
-    ${body_end}
 </body>

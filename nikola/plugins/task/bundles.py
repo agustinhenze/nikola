@@ -40,7 +40,7 @@ from nikola import utils
 class BuildBundles(LateTask):
     """Bundle assets using WebAssets."""
 
-    name = "build_bundles"
+    name = "create_bundles"
 
     def set_site(self, site):
         super(BuildBundles, self).set_site(site)
@@ -66,16 +66,19 @@ class BuildBundles(LateTask):
             inputs = [i for i in inputs if os.path.isfile(
                 os.path.join(out_dir, i))]
             cache_dir = os.path.join(kw['cache_folder'], 'webassets')
-            if not os.path.isdir(cache_dir):
-                os.makedirs(cache_dir)
+            utils.makedirs(cache_dir)
             env = webassets.Environment(out_dir, os.path.dirname(output),
                                         cache=cache_dir)
-            bundle = webassets.Bundle(*inputs, output=os.path.basename(output))
-            env.register(output, bundle)
-            # This generates the file
-            env[output].urls()
+            if inputs:
+                bundle = webassets.Bundle(*inputs, output=os.path.basename(output))
+                env.register(output, bundle)
+                # This generates the file
+                env[output].urls()
+            else:
+                with open(os.path.join(out_dir, os.path.basename(output)), 'wb+'):
+                    pass  # Create empty file
 
-        flag = False
+        yield self.group_task()
         if (webassets is not None and self.site.config['USE_BUNDLES'] is not
                 False):
             for name, files in kw['theme_bundles'].items():
@@ -85,7 +88,7 @@ class BuildBundles(LateTask):
                             for fname in files]
                 file_dep = filter(os.path.isfile, file_dep)  # removes missing files
                 task = {
-                    'file_dep': file_dep,
+                    'file_dep': list(file_dep),
                     'task_dep': ['copy_assets'],
                     'basename': str(self.name),
                     'name': str(output_path),
@@ -94,15 +97,7 @@ class BuildBundles(LateTask):
                     'uptodate': [utils.config_changed(kw)],
                     'clean': True,
                 }
-                flag = True
                 yield utils.apply_filters(task, kw['filters'])
-        if flag is False:  # No page rendered, yield a dummy task
-            yield {
-                'basename': self.name,
-                'uptodate': [True],
-                'name': 'None',
-                'actions': [],
-            }
 
 
 def get_theme_bundles(themes):
@@ -116,6 +111,6 @@ def get_theme_bundles(themes):
                 for line in fd:
                     name, files = line.split('=')
                     files = [f.strip() for f in files.split(',')]
-                    bundles[name.strip()] = files
+                    bundles[name.strip().replace('/', os.sep)] = files
                 break
     return bundles

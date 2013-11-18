@@ -28,11 +28,18 @@
 from __future__ import unicode_literals, print_function, absolute_import
 import os
 import shutil
+import sys
+import tempfile
 
 from mako import util, lexer
 from mako.lookup import TemplateLookup
+from mako.template import Template
+from markupsafe import Markup  # It's ok, Mako requires it
 
 from nikola.plugin_categories import TemplateSystem
+from nikola.utils import makedirs, get_logger, STDERR_HANDLER
+
+LOGGER = get_logger('mako', STDERR_HANDLER)
 
 
 class MakoTemplates(TemplateSystem):
@@ -57,8 +64,16 @@ class MakoTemplates(TemplateSystem):
         return deps
 
     def set_directories(self, directories, cache_folder):
-        """Createa  template lookup."""
+        """Create a template lookup."""
         cache_dir = os.path.join(cache_folder, '.mako.tmp')
+        # Workaround for a Mako bug, Issue #825
+        if sys.version_info[0] == 2:
+            try:
+                os.path.abspath(cache_dir).decode('ascii')
+            except UnicodeEncodeError:
+                cache_dir = tempfile.mkdtemp()
+                LOGGER.warning('Because of a Mako bug, setting cache_dir to {0}'.format(cache_dir))
+
         if os.path.exists(cache_dir):
             shutil.rmtree(cache_dir)
         self.lookup = TemplateLookup(
@@ -68,21 +83,23 @@ class MakoTemplates(TemplateSystem):
 
     def render_template(self, template_name, output_name, context):
         """Render the template into output_name using context."""
-
+        context['striphtml'] = striphtml
         template = self.lookup.get_template(template_name)
         data = template.render_unicode(**context)
         if output_name is not None:
-            try:
-                os.makedirs(os.path.dirname(output_name))
-            except:
-                pass
+            makedirs(os.path.dirname(output_name))
             with open(output_name, 'w+') as output:
                 output.write(data)
         return data
 
+    def render_template_to_string(self, template, context):
+        """ Render template to a string using context. """
+
+        return Template(template).render(**context)
+
     def template_deps(self, template_name):
         """Returns filenames which are dependencies for a template."""
-        # We can cache here because depedencies should
+        # We can cache here because dependencies should
         # not change between runs
         if self.cache.get(template_name, None) is None:
             template = self.lookup.get_template(template_name)
@@ -92,3 +109,7 @@ class MakoTemplates(TemplateSystem):
                 deps += self.template_deps(fname)
             self.cache[template_name] = tuple(deps)
         return list(self.cache[template_name])
+
+
+def striphtml(text):
+    return Markup(text).striptags()

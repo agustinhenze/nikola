@@ -34,6 +34,7 @@ except ImportError:
     from http.server import SimpleHTTPRequestHandler  # NOQA
 
 from nikola.plugin_categories import Command
+from nikola.utils import get_logger
 
 
 class CommandBuild(Command):
@@ -42,6 +43,7 @@ class CommandBuild(Command):
     name = "serve"
     doc_usage = "[options]"
     doc_purpose = "start the test webserver"
+    logger = None
 
     cmd_options = (
         {
@@ -64,15 +66,16 @@ class CommandBuild(Command):
 
     def _execute(self, options, args):
         """Start test server."""
+        self.logger = get_logger('serve', self.site.loghandlers)
         out_dir = self.site.config['OUTPUT_FOLDER']
         if not os.path.isdir(out_dir):
-            print("Error: Missing '{0}' folder?".format(out_dir))
+            self.logger.error("Missing '{0}' folder?".format(out_dir))
         else:
             os.chdir(out_dir)
             httpd = HTTPServer((options['address'], options['port']),
                                OurHTTPRequestHandler)
             sa = httpd.socket.getsockname()
-            print("Serving HTTP on", sa[0], "port", sa[1], "...")
+            self.logger.notice("Serving HTTP on {0} port {1} ...".format(*sa))
             httpd.serve_forever()
 
 

@@ -23,23 +23,26 @@ BLOG_DESCRIPTION = "${BLOG_DESCRIPTION}"
 # Nikola is multilingual!
 #
 # Currently supported languages are:
-# en     English
 # bg     Bulgarian
 # ca     Catalan
-# zh_cn  Chinese (Simplified)
-# hr     Croatian
-# nl     Dutch
-# fr     French
-# el     Greek [NOT gr!]
 # de     German
+# el     Greek [NOT gr!]
+# en     English
+# eo     Esperanto
+# es     Spanish
+# fa     Persian
+# fi     Finnish
+# fr     French
+# hr     Croatian
 # it     Italian
 # jp     Japanese
-# fa     Persian
-# pl     Polish
+# nl     Dutch
 # pt_br  Portuguese (Brasil)
+# pl     Polish
 # ru     Russian
-# es     Spanish
+# sl     Slovenian [NOT sl_si!]
 # tr_tr  Turkish (Turkey)
+# zh_cn  Chinese (Simplified)
 #
 # If you want to use Nikola with a non-supported language you have to provide
 # a module containing the necessary translations
@@ -73,13 +76,24 @@ NAVIGATION_LINKS = {
 # Below this point, everything is optional
 ##############################################
 
+# While nikola can select a sensible locale for each language,
+# sometimes explicit control can come handy.
+# In this file we express locales in the string form that
+# python's locales will accept in your OS, by example
+# "en_US.utf8" in unix-like OS, "English_United States" in Windows.
+# LOCALES = dict mapping language --> explicit locale for the languages
+# in TRANSLATIONS. You can ommit one or more keys.
+# LOCALE_FALLBACK = locale to use when an explicit locale is unavailable
+# LOCALE_DEFAULT = locale to use for languages not mentioned in LOCALES; if
+# not set the default Nikola mapping is used.
+
 # POSTS and PAGES contains (wildcard, destination, template) tuples.
 #
 # The wildcard is used to generate a list of reSt source files
 # (whatever/thing.txt).
 #
 # That fragment could have an associated metadata file (whatever/thing.meta),
-# and opcionally translated files (example for spanish, with code "es"):
+# and optionally translated files (example for spanish, with code "es"):
 #     whatever/thing.txt.es and whatever/thing.meta.es
 #
 # From those files, a set of HTML fragment files will be generated:
@@ -142,12 +156,20 @@ COMPILERS = ${COMPILERS}
 
 # Create per-month archives instead of per-year
 # CREATE_MONTHLY_ARCHIVE = False
+# Create one large archive instead of per-year
+# CREATE_SINGLE_ARCHIVE = False
 # Final locations for the archives are:
 # output / TRANSLATION[lang] / ARCHIVE_PATH / ARCHIVE_FILENAME
 # output / TRANSLATION[lang] / ARCHIVE_PATH / YEAR / index.html
 # output / TRANSLATION[lang] / ARCHIVE_PATH / YEAR / MONTH / index.html
 # ARCHIVE_PATH = ""
 # ARCHIVE_FILENAME = "archive.html"
+
+# URLs to other posts/pages can take 3 forms:
+# rel_path: a relative URL to the current page/post (default)
+# full_path: a URL with the full path from the root
+# absolute: a complete URL (that includes the SITE_URL)
+# URL_TYPE = 'rel_path'
 
 # Final locations are:
 # output / TRANSLATION[lang] / RSS_PATH / rss.xml
@@ -172,7 +194,8 @@ COMPILERS = ${COMPILERS}
 # Commands to execute to deploy. Can be anything, for example,
 # you may use rsync:
 # "rsync -rav output/* joe@my.site:/srv/www/site"
-# And then do a backup, or ping pingomatic.
+# And then do a backup, or run `nikola ping` from the `ping`
+# plugin (`nikola install_plugin ping`).
 # To do manual deployment, set it to []
 # DEPLOY_COMMANDS = []
 
@@ -203,14 +226,25 @@ COMPILERS = ${COMPILERS}
 # argument.
 #
 # By default, there are no filters.
+#
+# Many filters are shipped with Nikola.  A list is available in the manual:
+# <http://getnikola.com/handbook.html#post-processing-filters>
 # FILTERS = {
 #    ".jpg": ["jpegoptim --strip-all -m75 -v %s"],
 # }
 
-# Create a gzipped copy of each generated file. Cheap server-side optimization.
+# Expert setting! Create a gzipped copy of each generated file. Cheap server-
+# side optimization for very high traffic sites or low memory servers.
 # GZIP_FILES = False
 # File extensions that will be compressed
-# GZIP_EXTENSIONS = ('.txt', '.htm', '.html', '.css', '.js', '.json')
+# GZIP_EXTENSIONS = ('.txt', '.htm', '.html', '.css', '.js', '.json', '.xml')
+# Use an external gzip command? None means no.
+# Example: GZIP_COMMAND = "pigz -k {filename}"
+# GZIP_COMMAND = None
+# Make sure the server does not return a "Accept-Ranges: bytes" header for
+# files compressed by this option! OR make sure that a ranged request does not
+# return partial content of another representation for these resources. Do not
+# use this feature if you do not understand what this means.
 
 # #############################################################################
 # Image Gallery Options
@@ -222,6 +256,10 @@ COMPILERS = ${COMPILERS}
 # THUMBNAIL_SIZE = 180
 # MAX_IMAGE_SIZE = 1280
 # USE_FILENAME_AS_TITLE = True
+# EXTRA_IMAGE_EXTENSIONS = []
+#
+# If set to False, it will sort by filename instead. Defaults to True
+# GALLERY_SORT_BY_DATE = True
 
 # #############################################################################
 # HTML fragments and diverse things that are used by the templates
@@ -289,7 +327,7 @@ LICENSE = ""
 # Default is ''
 CONTENT_FOOTER = 'Contents &copy; {date} \
         <a href="mailto:{email}">{author}</a> - Powered by \
-        <a href="http://getnikola.com">Nikola</a> \
+        <a href="http://getnikola.com" rel="nofollow">Nikola</a> \
         {license}'
 CONTENT_FOOTER = CONTENT_FOOTER.format(email=BLOG_EMAIL,
                                        author=BLOG_AUTHOR,
@@ -298,13 +336,20 @@ CONTENT_FOOTER = CONTENT_FOOTER.format(email=BLOG_EMAIL,
 
 # To use comments, you can choose between different third party comment
 # systems, one of "disqus", "livefyre", "intensedebate", "moot",
-#                 "googleplus" or "facebook"
+#                 "googleplus", "facebook" or "isso"
 # COMMENT_SYSTEM = "disqus"
 # And you also need to add your COMMENT_SYSTEM_ID which
 # depends on what comment system you use. The default is
 # "nikolademo" which is a test account for Disqus. More information
 # is in the manual.
 # COMMENT_SYSTEM_ID = "nikolademo"
+
+# Enable annotations using annotateit.org?
+# If set to False, you can still enable them for individual posts and pages
+# setting the "annotations" metadata.
+# If set to True, you can disable them for individual posts and pages using
+# the "noannotations" metadata.
+# ANNOTATIONS = False
 
 # Create index.html for story folders?
 # STORY_INDEX = False
@@ -378,6 +423,12 @@ CONTENT_FOOTER = CONTENT_FOOTER.format(email=BLOG_EMAIL,
 #});
 #</script>
 #"""
+
+# Do you want to customize the nbconversion of your IPython notebook?
+# IPYNB_CONFIG = {}
+# With the following example configuracion you can use a custom jinja template
+# called `toggle.tpl` which has to be located in your site/blog main folder:
+# IPYNB_CONFIG = {'Exporter':{'template_file': 'toggle'}}
 
 # What MarkDown extensions to enable?
 # You will also get gist, nikola and podcast because those are
@@ -538,11 +589,15 @@ CONTENT_FOOTER = CONTENT_FOOTER.format(email=BLOG_EMAIL,
 # }
 
 
-# If you want to use formatted post time in W3C-DTF Format
-# (ex. 2012-03-30T23:00:00+02:00),
-# set timzone if you want a localized posted date.
+# Post's dates are considered in UTC by default, if you want to use
+# another time zone, please set TIMEZONE to match. Check the available
+# list from Wikipedia:
+# http://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+# (eg. 'Europe/Zurich')
+# Also, if you want to use a different time zone in some of your posts,
+# you can use W3C-DTF Format (ex. 2012-03-30T23:00:00+02:00)
 #
-# TIMEZONE = 'Europe/Zurich'
+# TIMEZONE = 'UTC'
 
 # If webassets is installed, bundle JS and CSS to make site loading faster
 # USE_BUNDLES = True
@@ -566,6 +621,29 @@ CONTENT_FOOTER = CONTENT_FOOTER.format(email=BLOG_EMAIL,
 
 # If set to True, enable optional hyphenation in your posts (requires pyphen)
 # HYPHENATE = False
+
+# The <hN> tags in HTML generated by certain compilers (reST/Markdown)
+# will be demoted by that much (1 → h1 will become h2 and so on)
+# This was a hidden feature of the Markdown and reST compilers in the
+# past.  Useful especially if your post titles are in <h1> tags too, for
+# example.
+# (defaults to 1.)
+# DEMOTE_HEADERS = 1
+
+# You can configure the logging handlers installed as plugins or change the
+# log level of the default stdout handler.
+LOGGING_HANDLERS = {
+    'stderr': {'loglevel': 'WARNING', 'bubble': True},
+    #'smtp': {
+    #    'from_addr': 'test-errors@example.com',
+    #    'recipients': ('test@example.com'),
+    #    'credentials':('testusername', 'password'),
+    #    'server_addr': ('127.0.0.1', 25),
+    #    'secure': (),
+    #    'level': 'DEBUG',
+    #    'bubble': True
+    #}
+}
 
 # Put in global_context things you want available on all your templates.
 # It can be anything, data, functions, modules, etc.

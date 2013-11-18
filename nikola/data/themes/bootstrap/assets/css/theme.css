@@ -79,3 +79,9 @@ ul.bricks > li {
 ul.breadcrumb > li:before {
     content: " / ";
 }
+
+pre, pre code {
+    white-space: pre;
+    word-wrap: normal;
+    overflow: auto;
+}

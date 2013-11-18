@@ -42,6 +42,14 @@ class RenderTags(Task):
 
     name = "render_tags"
 
+    def set_site(self, site):
+        site.register_path_handler('tag_index', self.tag_index_path)
+        site.register_path_handler('tag', self.tag_path)
+        site.register_path_handler('tag_rss', self.tag_rss_path)
+        site.register_path_handler('category', self.category_path)
+        site.register_path_handler('category_rss', self.category_rss_path)
+        return super(RenderTags, self).set_site(site)
+
     def gen_tasks(self):
         """Render the tag pages and feeds."""
 
@@ -49,7 +57,6 @@ class RenderTags(Task):
             "translations": self.site.config["TRANSLATIONS"],
             "blog_title": self.site.config["BLOG_TITLE"],
             "site_url": self.site.config["SITE_URL"],
-            "blog_description": self.site.config["BLOG_DESCRIPTION"],
             "messages": self.site.MESSAGES,
             "output_folder": self.site.config['OUTPUT_FOLDER'],
             "filters": self.site.config['FILTERS'],
@@ -63,11 +70,11 @@ class RenderTags(Task):
         }
 
         self.site.scan_posts()
+        yield self.group_task()
 
         yield self.list_tags_page(kw)
 
         if not self.site.posts_per_tag and not self.site.posts_per_category:
-            yield {'basename': str(self.name), 'actions': []}
             return
 
         tag_list = list(self.site.posts_per_tag.items())
@@ -82,7 +89,7 @@ class RenderTags(Task):
                     filtered_posts = [x for x in post_list if x.is_translation_available(lang)]
                 else:
                     filtered_posts = post_list
-                rss_post_list = [p.post_name for p in filtered_posts]
+                rss_post_list = [p.source_path for p in filtered_posts]
                 yield self.tag_rss(tag, lang, rss_post_list, kw, is_category)
                 # Render HTML
                 if kw['tag_pages_are_indexes']:
@@ -109,10 +116,7 @@ class RenderTags(Task):
                                    'assets', 'js', 'tag_cloud_data.json')
 
         def write_tag_data(data):
-            try:
-                os.makedirs(os.path.dirname(output_name))
-            except:
-                pass
+            utils.makedirs(os.path.dirname(output_name))
             with codecs.open(output_name, 'wb+', 'utf8') as fd:
                 fd.write(json.dumps(data))
 
@@ -157,6 +161,7 @@ class RenderTags(Task):
             else:
                 context["cat_items"] = None
             context["permalink"] = self.site.link("tag_index", None, lang)
+            context["description"] = None
             task = self.site.generic_post_list_renderer(
                 lang,
                 [],
@@ -167,6 +172,7 @@ class RenderTags(Task):
             )
             task_cfg = {1: task['uptodate'][0].config, 2: kw}
             task['uptodate'] = [utils.config_changed(task_cfg)]
+            task['basename'] = str(self.name)
             yield task
 
     def tag_page_as_index(self, tag, lang, post_list, kw, is_category):
@@ -216,6 +222,7 @@ class RenderTags(Task):
                     page_name(tag, i + 1, lang))
             context["permalink"] = self.site.link(kind, tag, lang)
             context["tag"] = tag
+            context["description"] = None
             task = self.site.generic_post_list_renderer(
                 lang,
                 post_list,
@@ -227,6 +234,7 @@ class RenderTags(Task):
             task_cfg = {1: task['uptodate'][0].config, 2: kw}
             task['uptodate'] = [utils.config_changed(task_cfg)]
             task['basename'] = str(self.name)
+
             yield task
 
     def tag_page_as_list(self, tag, lang, post_list, kw, is_category):
@@ -242,6 +250,7 @@ class RenderTags(Task):
         context["permalink"] = self.site.link(kind, tag, lang)
         context["tag"] = tag
         context["kind"] = kind
+        context["description"] = None
         task = self.site.generic_post_list_renderer(
             lang,
             post_list,
@@ -277,9 +286,39 @@ class RenderTags(Task):
             'targets': [output_name],
             'actions': [(utils.generic_rss_renderer,
                         (lang, "{0} ({1})".format(kw["blog_title"], tag),
-                         kw["site_url"], kw["blog_description"], post_list,
+                         kw["site_url"], None, post_list,
                          output_name, kw["rss_teasers"], kw['feed_length'], feed_url))],
             'clean': True,
             'uptodate': [utils.config_changed(kw)],
             'task_dep': ['render_posts'],
         }
+
+    def slugify_name(self, name):
+        if self.site.config['SLUG_TAG_PATH']:
+            name = utils.slugify(name)
+        return name
+
+    def tag_index_path(self, name, lang):
+        return [_f for _f in [self.site.config['TRANSLATIONS'][lang],
+                              self.site.config['TAG_PATH'],
+                              self.site.config['INDEX_FILE']] if _f]
+
+    def tag_path(self, name, lang):
+        return [_f for _f in [self.site.config['TRANSLATIONS'][lang],
+                              self.site.config['TAG_PATH'], self.slugify_name(name) + ".html"] if
+                _f]
+
+    def tag_rss_path(self, name, lang):
+        return [_f for _f in [self.site.config['TRANSLATIONS'][lang],
+                              self.site.config['TAG_PATH'], self.slugify_name(name) + ".xml"] if
+                _f]
+
+    def category_path(self, name, lang):
+        return [_f for _f in [self.site.config['TRANSLATIONS'][lang],
+                              self.site.config['TAG_PATH'], "cat_" + self.slugify_name(name) + ".html"] if
+                _f]
+
+    def category_rss_path(self, name, lang):
+        return [_f for _f in [self.site.config['TRANSLATIONS'][lang],
+                              self.site.config['TAG_PATH'], "cat_" + self.slugify_name(name) + ".xml"] if
+                _f]

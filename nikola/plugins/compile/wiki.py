@@ -37,21 +37,19 @@ except ImportError:
     creole = None
 
 from nikola.plugin_categories import PageCompiler
+from nikola.utils import makedirs, req_missing
 
 
-class CompileTextile(PageCompiler):
-    """Compile textile into HTML."""
+class CompileWiki(PageCompiler):
+    """Compile CreoleWiki into HTML."""
 
     name = "wiki"
+    demote_headers = True
 
     def compile_html(self, source, dest, is_two_file=True):
         if creole is None:
-            raise Exception('To build this site, you need to install the '
-                            '"creole" package.')
-        try:
-            os.makedirs(os.path.dirname(dest))
-        except:
-            pass
+            req_missing(['creole'], 'build this site (compile CreoleWiki)')
+        makedirs(os.path.dirname(dest))
         with codecs.open(dest, "w+", "utf8") as out_file:
             with codecs.open(source, "r", "utf8") as in_file:
                 data = in_file.read()
@@ -63,9 +61,7 @@ class CompileTextile(PageCompiler):
         metadata = {}
         metadata.update(self.default_metadata)
         metadata.update(kw)
-        d_name = os.path.dirname(path)
-        if not os.path.isdir(d_name):
-            os.makedirs(os.path.dirname(path))
+        makedirs(os.path.dirname(path))
         if onefile:
             raise Exception('There are no comments in CreoleWiki markup, so '
                             'one-file format is not possible, use the -2 '

@@ -1,13 +1,16 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals, print_function, absolute_import
 
-import codecs
-from contextlib import contextmanager
-import locale
+# This code is so you can run the samples without installing the package,
+# and should be before any import touching nikola, in any file under tests/
 import os
-import shutil
-import subprocess
 import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+
+import codecs
+import locale
+import shutil
 import tempfile
 import unittest
 
@@ -19,29 +22,25 @@ import nikola
 import nikola.plugins.command
 import nikola.plugins.command.init
 
-
-@contextmanager
-def cd(path):
-    old_dir = os.getcwd()
-    os.chdir(path)
-    yield
-    os.chdir(old_dir)
+from .base import BaseTestCase, cd
 
 
-class EmptyBuildTest(unittest.TestCase):
+class EmptyBuildTest(BaseTestCase):
     """Basic integration testcase."""
 
     dataname = None
 
-    def setUp(self):
+    @classmethod
+    def setUpClass(cls):
         """Setup a demo site."""
-        self.tmpdir = tempfile.mkdtemp()
-        self.target_dir = os.path.join(self.tmpdir, "target")
-        self.init_command = nikola.plugins.command.init.CommandInit()
-        self.fill_site()
-        self.patch_site()
-        self.build()
+        cls.tmpdir = tempfile.mkdtemp()
+        cls.target_dir = os.path.join(cls.tmpdir, "target")
+        cls.init_command = nikola.plugins.command.init.CommandInit()
+        cls.fill_site()
+        cls.patch_site()
+        cls.build()
 
+    @classmethod
     def fill_site(self):
         """Add any needed initial content."""
         self.init_command.create_empty_site(self.target_dir)
@@ -57,17 +56,21 @@ class EmptyBuildTest(unittest.TestCase):
                     src_file = os.path.join(root, src_name)
                     shutil.copy2(src_file, dst_file)
 
+    @classmethod
     def patch_site(self):
         """Make any modifications you need to the site."""
 
+    @classmethod
     def build(self):
         """Build the site."""
         with cd(self.target_dir):
             main.main(["build"])
 
-    def tearDown(self):
+    @classmethod
+    def tearDownClass(self):
         """Remove the demo site."""
-        shutil.rmtree(self.tmpdir)
+        # ignore_errors=True for windows by issue #782
+        shutil.rmtree(self.tmpdir, ignore_errors=(sys.platform == 'win32'))
         # Fixes Issue #438
         try:
             del sys.modules['conf']
@@ -84,6 +87,7 @@ class EmptyBuildTest(unittest.TestCase):
 class DemoBuildTest(EmptyBuildTest):
     """Test that a default build of --demo works."""
 
+    @classmethod
     def fill_site(self):
         """Fill the site with demo content."""
         self.init_command.copy_sample_site(self.target_dir)
@@ -93,17 +97,23 @@ class DemoBuildTest(EmptyBuildTest):
             outf.write(
                 ".. title: foobar\n"
                 ".. slug: foobar\n"
-                ".. date: 2013/03/06 19:08:15\n"
+                ".. date: 2013-03-06 19:08:15\n"
             )
 
     def test_index_in_sitemap(self):
         sitemap_path = os.path.join(self.target_dir, "output", "sitemap.xml")
         sitemap_data = codecs.open(sitemap_path, "r", "utf8").read()
-        self.assertTrue('<loc>http://getnikola.com/</loc>' in sitemap_data)
+        self.assertTrue('<loc>http://getnikola.com/index.html</loc>' in sitemap_data)
+
+    def test_avoid_double_slash_in_rss(self):
+        rss_path = os.path.join(self.target_dir, "output", "rss.xml")
+        rss_data = codecs.open(rss_path, "r", "utf8").read()
+        self.assertFalse('http://getnikola.com//' in rss_data)
 
 
 class RepeatedPostsSetting(DemoBuildTest):
     """Duplicate POSTS, should not read each post twice, which causes conflicts."""
+    @classmethod
     def patch_site(self):
         """Set the SITE_URL to have a path"""
         conf_path = os.path.join(self.target_dir, "conf.py")
@@ -114,6 +124,7 @@ class RepeatedPostsSetting(DemoBuildTest):
 class FuturePostTest(EmptyBuildTest):
     """Test a site with future posts."""
 
+    @classmethod
     def fill_site(self):
         import datetime
         from nikola.utils import current_time
@@ -128,14 +139,14 @@ class FuturePostTest(EmptyBuildTest):
             outf.write(
                 ".. title: foo\n"
                 ".. slug: foo\n"
-                ".. date: %s\n" % (current_time() + datetime.timedelta(-1)).strftime('%Y/%m/%d %T')
+                ".. date: %s\n" % (current_time() + datetime.timedelta(-1)).strftime('%Y-%m-%d %H:%M:%S')
             )
 
         with codecs.open(os.path.join(self.target_dir, 'posts', 'empty2.txt'), "wb+", "utf8") as outf:
             outf.write(
                 ".. title: bar\n"
                 ".. slug: bar\n"
-                ".. date: %s\n" % (current_time() + datetime.timedelta(1)).strftime('%Y/%m/%d %T')
+                ".. date: %s\n" % (current_time() + datetime.timedelta(1)).strftime('%Y-%m-%d %H:%M:%S')
             )
 
     def test_future_post(self):
@@ -194,6 +205,7 @@ class TranslatedBuildTest(EmptyBuildTest):
 class RelativeLinkTest(DemoBuildTest):
     """Check that SITE_URL with a path doesn't break links."""
 
+    @classmethod
     def patch_site(self):
         """Set the SITE_URL to have a path"""
         conf_path = os.path.join(self.target_dir, "conf.py")
@@ -223,7 +235,7 @@ class RelativeLinkTest(DemoBuildTest):
         sitemap_path = os.path.join(self.target_dir, "output", "sitemap.xml")
         sitemap_data = codecs.open(sitemap_path, "r", "utf8").read()
         self.assertFalse('<loc>http://getnikola.com/</loc>' in sitemap_data)
-        self.assertTrue('<loc>http://getnikola.com/foo/bar/</loc>' in sitemap_data)
+        self.assertTrue('<loc>http://getnikola.com/foo/bar/index.html</loc>' in sitemap_data)
 
 
 class TestCheck(DemoBuildTest):
@@ -231,13 +243,17 @@ class TestCheck(DemoBuildTest):
 
     def test_check_links(self):
         with cd(self.target_dir):
-            p = subprocess.call("nikola check -l", shell=True)
-        self.assertEqual(p, 0)
+            try:
+                main.main(['check', '-l'])
+            except SystemExit as e:
+                self.assertEqual(e.code, 0)
 
     def test_check_files(self):
         with cd(self.target_dir):
-            p = subprocess.call("nikola check -f", shell=True)
-        self.assertEqual(p, 0)
+            try:
+                main.main(['check', '-f'])
+            except SystemExit as e:
+                self.assertEqual(e.code, 0)
 
 
 class TestCheckFailure(DemoBuildTest):
@@ -246,20 +262,25 @@ class TestCheckFailure(DemoBuildTest):
     def test_check_links_fail(self):
         with cd(self.target_dir):
             os.unlink(os.path.join("output", "archive.html"))
-            p = subprocess.call("nikola check -l", shell=True)
-        self.assertEqual(p, 1)
+            try:
+                main.main(['check', '-l'])
+            except SystemExit as e:
+                self.assertNotEqual(e.code, 0)
 
     def test_check_files_fail(self):
         with cd(self.target_dir):
             with codecs.open(os.path.join("output", "foobar"), "wb+", "utf8") as outf:
                 outf.write("foo")
-            p = subprocess.call("nikola check -f", shell=True)
-        self.assertEqual(p, 1)
+            try:
+                main.main(['check', '-f'])
+            except SystemExit as e:
+                self.assertNotEqual(e.code, 0)
 
 
 class RelativeLinkTest2(DemoBuildTest):
     """Check that dropping stories to the root doesn't break links."""
 
+    @classmethod
     def patch_site(self):
         """Set the SITE_URL to have a path"""
         conf_path = os.path.join(self.target_dir, "conf.py")
@@ -294,7 +315,39 @@ class RelativeLinkTest2(DemoBuildTest):
         sitemap_path = os.path.join(self.target_dir, "output", "sitemap.xml")
         sitemap_data = codecs.open(sitemap_path, "r", "utf8").read()
         self.assertFalse('<loc>http://getnikola.com/</loc>' in sitemap_data)
-        self.assertTrue('<loc>http://getnikola.com/blog/</loc>' in sitemap_data)
+        self.assertTrue('<loc>http://getnikola.com/blog/index.html</loc>' in sitemap_data)
+
+
+class MonthlyArchiveTest(DemoBuildTest):
+    """Check that the monthly archives build and are correct."""
+
+    @classmethod
+    def patch_site(self):
+        """Set the SITE_URL to have a path"""
+        conf_path = os.path.join(self.target_dir, "conf.py")
+        with codecs.open(conf_path, "rb", "utf-8") as inf:
+            data = inf.read()
+            data = data.replace('# CREATE_MONTHLY_ARCHIVE = False',
+                                'CREATE_MONTHLY_ARCHIVE = True')
+        with codecs.open(conf_path, "wb+", "utf8") as outf:
+            outf.write(data)
+            outf.flush()
+
+    def test_monthly_archive(self):
+        """See that it builds"""
+        self.assertTrue(os.path.isfile(os.path.join(self.tmpdir, 'target', 'output', '2012', '03', 'index.html')))
+
+
+class SubdirRunningTest(DemoBuildTest):
+    """Check that running nikola from subdir works."""
+
+    def test_subdir_run(self):
+        """Check whether build works from posts/"""
+
+        with cd(os.path.join(self.target_dir, 'posts')):
+            result = main.main(['build'])
+            self.assertEquals(result, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

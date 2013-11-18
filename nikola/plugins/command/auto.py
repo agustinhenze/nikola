@@ -32,6 +32,7 @@ import os
 import subprocess
 
 from nikola.plugin_categories import Command
+from nikola.utils import req_missing
 
 GUARDFILE = """#!/usr/bin/env python
 # -*- coding: utf-8 -*-
@@ -40,6 +41,7 @@ import json
 import subprocess
 
 def f():
+    import subprocess
     subprocess.call(("nikola", "build"))
 
 fdata = json.loads('''{0}''')
@@ -76,8 +78,7 @@ class Auto(Command):
         try:
             from livereload.server import start
         except ImportError:
-            print('To use the auto command, you need to install the '
-                  '"livereload" package.')
+            req_missing(['livereload'], 'use the "auto" command')
             return
 
         # Run an initial build so we are uptodate

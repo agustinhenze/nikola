@@ -48,7 +48,10 @@ except ImportError:
 
 from nikola.plugin_categories import Command
 from nikola import utils
+from nikola.utils import req_missing
 from nikola.plugins.basic_import import ImportMixin, links
+
+LOGGER = utils.get_logger('import_wordpress', utils.STDERR_HANDLER)
 
 
 class CommandImportWordpress(Command, ImportMixin):
@@ -96,9 +99,9 @@ class CommandImportWordpress(Command, ImportMixin):
             options['output_folder'] = args.pop(0)
 
         if args:
-            print('You specified additional arguments ({0}). Please consider '
-                  'putting these arguments before the filename if you '
-                  'are running into problems.'.format(args))
+            LOGGER.warn('You specified additional arguments ({0}). Please consider '
+                        'putting these arguments before the filename if you '
+                        'are running into problems.'.format(args))
 
         self.import_into_existing_site = False
         self.url_map = {}
@@ -113,7 +116,7 @@ class CommandImportWordpress(Command, ImportMixin):
 
         if not self.no_downloads:
             def show_info_about_mising_module(modulename):
-                print(
+                LOGGER.error(
                     'To use the "{commandname}" command, you have to install '
                     'the "{package}" package or supply the "--no-downloads" '
                     'option.'.format(
@@ -121,13 +124,12 @@ class CommandImportWordpress(Command, ImportMixin):
                         package=modulename)
                 )
 
-            if requests is None:
-                show_info_about_mising_module('requests')
-                return
-
-            if phpserialize is None:
-                show_info_about_mising_module('phpserialize')
-                return
+            if requests is None and phpserialize is None:
+                req_missing(['requests', 'phpserialize'], 'import WordPress dumps without --no-downloads')
+            elif requests is None:
+                req_missing(['requests'], 'import WordPress dumps without --no-downloads')
+            elif phpserialize is None:
+                req_missing(['phpserialize'], 'import WordPress dumps without --no-downloads')
 
         channel = self.get_channel_from_file(self.wordpress_export_file)
         self.context = self.populate_context(channel)
@@ -143,7 +145,7 @@ class CommandImportWordpress(Command, ImportMixin):
         rendered_template = re.sub('# REDIRECTIONS = ', 'REDIRECTIONS = ',
                                    rendered_template)
         if self.timezone:
-            rendered_template = re.sub('# TIMEZONE = \'Europe/Zurich\'',
+            rendered_template = re.sub('# TIMEZONE = \'UTC\'',
                                        'TIMEZONE = \'' + self.timezone + '\'',
                                        rendered_template)
         self.write_configuration(self.get_configuration_output_path(),
@@ -217,10 +219,10 @@ class CommandImportWordpress(Command, ImportMixin):
             '{{{0}}}author_display_name'.format(wordpress_namespace),
             "Joe Example")
         context['POSTS'] = '''(
-            ("posts/*.wp", "posts", "post.tmpl", True),
+            ("posts/*.wp", "posts", "post.tmpl"),
         )'''
         context['PAGES'] = '''(
-            ("stories/*.wp", "stories", "story.tmpl", False),
+            ("stories/*.wp", "stories", "story.tmpl"),
         )'''
         context['COMPILERS'] = '''{
         "rest": ('.txt', '.rst'),
@@ -239,8 +241,7 @@ class CommandImportWordpress(Command, ImportMixin):
             with open(dst_path, 'wb+') as fd:
                 fd.write(requests.get(url).content)
         except requests.exceptions.ConnectionError as err:
-            print("Downloading {0} to {1} failed: {2}".format(url, dst_path,
-                                                              err))
+            LOGGER.warn("Downloading {0} to {1} failed: {2}".format(url, dst_path, err))
 
     def import_attachment(self, item, wordpress_namespace):
         url = get_text_tag(
@@ -251,9 +252,8 @@ class CommandImportWordpress(Command, ImportMixin):
         dst_path = os.path.join(*([self.output_folder, 'files']
                                   + list(path.split('/'))))
         dst_dir = os.path.dirname(dst_path)
-        if not os.path.isdir(dst_dir):
-            os.makedirs(dst_dir)
-        print("Downloading {0} => {1}".format(url, dst_path))
+        utils.makedirs(dst_dir)
+        LOGGER.notice("Downloading {0} => {1}".format(url, dst_path))
         self.download_url_content_to_file(url, dst_path)
         dst_url = '/'.join(dst_path.split(os.sep)[2:])
         links[link] = '/' + dst_url
@@ -306,9 +306,8 @@ class CommandImportWordpress(Command, ImportMixin):
                     dst_path = os.path.join(*([self.output_folder, 'files']
                                               + list(path.split('/'))))
                     dst_dir = os.path.dirname(dst_path)
-                    if not os.path.isdir(dst_dir):
-                        os.makedirs(dst_dir)
-                    print("Downloading {0} => {1}".format(url, dst_path))
+                    utils.makedirs(dst_dir)
+                    LOGGER.notice("Downloading {0} => {1}".format(url, dst_path))
                     self.download_url_content_to_file(url, dst_path)
                     dst_url = '/'.join(dst_path.split(os.sep)[2:])
                     links[url] = '/' + dst_url
@@ -366,7 +365,7 @@ class CommandImportWordpress(Command, ImportMixin):
             slug = get_text_tag(
                 item, '{{{0}}}post_id'.format(wordpress_namespace), None)
         if not slug:  # should never happen
-            print("Error converting post:", title)
+            LOGGER.error("Error converting post:", title)
             return
 
         description = get_text_tag(item, 'description', '')
@@ -382,7 +381,7 @@ class CommandImportWordpress(Command, ImportMixin):
 
         tags = []
         if status == 'trash':
-            print('Trashed post "{0}" will not be imported.'.format(title))
+            LOGGER.warn('Trashed post "{0}" will not be imported.'.format(title))
             return
         elif status != 'publish':
             tags.append('draft')
@@ -397,7 +396,7 @@ class CommandImportWordpress(Command, ImportMixin):
             tags.append(text)
 
         if is_draft and self.exclude_drafts:
-            print('Draft "{0}" will not be imported.'.format(title))
+            LOGGER.notice('Draft "{0}" will not be imported.'.format(title))
         elif content.strip():
             # If no content is found, no files are written.
             self.url_map[link] = self.context['SITE_URL'] + '/' + \
@@ -412,8 +411,8 @@ class CommandImportWordpress(Command, ImportMixin):
                 os.path.join(self.output_folder, out_folder, slug + '.wp'),
                 content)
         else:
-            print('Not going to import "{0}" because it seems to contain'
-                  ' no content.'.format(title))
+            LOGGER.warn('Not going to import "{0}" because it seems to contain'
+                        ' no content.'.format(title))
 
     def process_item(self, item):
         # The namespace usually is something like:

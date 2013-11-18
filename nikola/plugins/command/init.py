@@ -33,6 +33,10 @@ from mako.template import Template
 
 import nikola
 from nikola.plugin_categories import Command
+from nikola.utils import get_logger, makedirs, STDERR_HANDLER
+from nikola.winutils import fix_git_symlinked
+
+LOGGER = get_logger('init', STDERR_HANDLER)
 
 
 class CommandInit(Command):
@@ -63,15 +67,15 @@ class CommandInit(Command):
         'THEME': 'bootstrap3',
 
         'POSTS': """(
-    ("posts/*.txt", "posts", "post.tmpl"),
     ("posts/*.rst", "posts", "post.tmpl"),
+    ("posts/*.txt", "posts", "post.tmpl"),
 )""",
         'PAGES': """(
-    ("stories/*.txt", "stories", "story.tmpl"),
     ("stories/*.rst", "stories", "story.tmpl"),
+    ("stories/*.txt", "stories", "story.tmpl"),
 )""",
         'COMPILERS': """{
-    "rest": ('.txt', '.rst'),
+    "rest": ('.rst', '.txt'),
     "markdown": ('.md', '.mdown', '.markdown'),
     "textile": ('.textile',),
     "txt2tags": ('.t2t',),
@@ -92,6 +96,7 @@ class CommandInit(Command):
         lib_path = cls.get_path_to_nikola_modules()
         src = os.path.join(lib_path, 'data', 'samplesite')
         shutil.copytree(src, target)
+        fix_git_symlinked(src, target)
 
     @classmethod
     def create_configuration(cls, target):
@@ -105,7 +110,7 @@ class CommandInit(Command):
     @classmethod
     def create_empty_site(cls, target):
         for folder in ('files', 'galleries', 'listings', 'posts', 'stories'):
-            os.makedirs(os.path.join(target, folder))
+            makedirs(os.path.join(target, folder))
 
     @staticmethod
     def get_path_to_nikola_modules():
@@ -122,11 +127,11 @@ class CommandInit(Command):
         else:
             if not options or not options.get('demo'):
                 self.create_empty_site(target)
-                print('Created empty site at {0}.'.format(target))
+                LOGGER.notice('Created empty site at {0}.'.format(target))
             else:
                 self.copy_sample_site(target)
-                print("A new site with example data has been created at "
-                      "{0}.".format(target))
-                print("See README.txt in that folder for more information.")
+                LOGGER.notice("A new site with example data has been created at "
+                              "{0}.".format(target))
+                LOGGER.notice("See README.txt in that folder for more information.")
 
             self.create_configuration(target)

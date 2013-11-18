@@ -36,6 +36,7 @@ except ImportError:
     jinja2 = None  # NOQA
 
 from nikola.plugin_categories import TemplateSystem
+from nikola.utils import makedirs, req_missing
 
 
 class JinjaTemplates(TemplateSystem):
@@ -56,26 +57,26 @@ class JinjaTemplates(TemplateSystem):
     def set_directories(self, directories, cache_folder):
         """Createa  template lookup."""
         if jinja2 is None:
-            raise Exception('To use this theme you need to install the '
-                            '"Jinja2" package.')
+            req_missing(['jinja2'], 'use this theme')
         self.lookup.loader = jinja2.FileSystemLoader(directories,
                                                      encoding='utf-8')
 
     def render_template(self, template_name, output_name, context):
         """Render the template into output_name using context."""
         if jinja2 is None:
-            raise Exception('To use this theme you need to install the '
-                            '"Jinja2" package.')
+            req_missing(['jinja2'], 'use this theme')
         template = self.lookup.get_template(template_name)
         output = template.render(**context)
         if output_name is not None:
-            try:
-                os.makedirs(os.path.dirname(output_name))
-            except:
-                pass
+            makedirs(os.path.dirname(output_name))
             with open(output_name, 'w+') as output:
                 output.write(output.encode('utf8'))
         return output
+
+    def render_template_to_string(self, template, context):
+        """ Render template to a string using context. """
+
+        return jinja2.Template(template).render(**context)
 
     def template_deps(self, template_name):
         # Cache the lists of dependencies for each template name.

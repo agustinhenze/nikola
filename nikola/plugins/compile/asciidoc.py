@@ -32,30 +32,31 @@ You will need, of course, to install asciidoc
 
 import codecs
 import os
+import subprocess
 
 from nikola.plugin_categories import PageCompiler
+from nikola.utils import makedirs, req_missing
 
 
 class CompileAsciiDoc(PageCompiler):
     """Compile asciidoc into HTML."""
 
     name = "asciidoc"
+    demote_headers = True
 
     def compile_html(self, source, dest, is_two_file=True):
+        makedirs(os.path.dirname(dest))
         try:
-            os.makedirs(os.path.dirname(dest))
-        except:
-            pass
-        cmd = "asciidoc -f html -s -o {0} {1}".format(dest, source)
-        os.system(cmd)
+            subprocess.check_call(('asciidoc', '-f', 'html', '-s', '-o', dest, source))
+        except OSError as e:
+            if e.strreror == 'No such file or directory':
+                req_missing(['asciidoc'], 'build this site (compile with asciidoc)', python=False)
 
     def create_post(self, path, onefile=False, **kw):
         metadata = {}
         metadata.update(self.default_metadata)
         metadata.update(kw)
-        d_name = os.path.dirname(path)
-        if not os.path.isdir(d_name):
-            os.makedirs(os.path.dirname(path))
+        makedirs(os.path.dirname(path))
         with codecs.open(path, "wb+", "utf8") as fd:
             if onefile:
                 fd.write("/////////////////////////////////////////////\n")

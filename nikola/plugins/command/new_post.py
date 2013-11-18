@@ -30,8 +30,12 @@ import datetime
 import os
 import sys
 
+from blinker import signal
+
 from nikola.plugin_categories import Command
 from nikola import utils
+
+LOGGER = utils.get_logger('new_post', utils.STDERR_HANDLER)
 
 
 def filter_post_pages(compiler, is_post, compilers, post_pages):
@@ -98,8 +102,8 @@ def get_date(schedule=False, rule=None, last_date=None, force_today=False):
         try:
             from dateutil import rrule
         except ImportError:
-            print('To use the --schedule switch of new_post, '
-                  'you have to install the "dateutil" package.')
+            LOGGER.error('To use the --schedule switch of new_post, '
+                         'you have to install the "dateutil" package.')
             rrule = None
     if schedule and rrule and rule:
         if last_date and last_date.tzinfo:
@@ -108,7 +112,7 @@ def get_date(schedule=False, rule=None, last_date=None, force_today=False):
         try:
             rule_ = rrule.rrulestr(rule, dtstart=last_date)
         except Exception:
-            print('Unable to parse rule string, using current time.')
+            LOGGER.error('Unable to parse rule string, using current time.')
         else:
             # Try to post today, instead of tomorrow, if no other post today.
             if force_today:
@@ -182,7 +186,6 @@ class CommandNewPost(Command):
 
     def _execute(self, options, args):
         """Create a new post or page."""
-
         compiler_names = [p.name for p in
                           self.site.plugin_manager.getPluginsOfCategory(
                               "PageCompiler")]
@@ -216,7 +219,7 @@ class CommandNewPost(Command):
                 self.site.config['post_pages'])
 
         if post_format not in compiler_names:
-            print("ERROR: Unknown post format " + post_format)
+            LOGGER.error("Unknown post format " + post_format)
             return
         compiler_plugin = self.site.plugin_manager.getPluginByName(
             post_format, "PageCompiler").plugin_object
@@ -264,21 +267,25 @@ class CommandNewPost(Command):
 
         if (not onefile and os.path.isfile(meta_path)) or \
                 os.path.isfile(txt_path):
-            print("The title already exists!")
+            LOGGER.error("The title already exists!")
             exit()
 
         d_name = os.path.dirname(txt_path)
-        if not os.path.exists(d_name):
-            os.makedirs(d_name)
+        utils.makedirs(d_name)
         metadata = self.site.config['ADDITIONAL_METADATA']
         compiler_plugin.create_post(
             txt_path, onefile, title=title,
             slug=slug, date=date, tags=tags, **metadata)
+
+        event = dict(path=txt_path)
 
         if not onefile:  # write metadata file
             with codecs.open(meta_path, "wb+", "utf8") as fd:
                 fd.write('\n'.join(data))
             with codecs.open(txt_path, "wb+", "utf8") as fd:
                 fd.write("Write your post here.")
-            print("Your post's metadata is at: ", meta_path)
-        print("Your post's text is at: ", txt_path)
+            LOGGER.notice("Your post's metadata is at: {0}".format(meta_path))
+            event['meta_path'] = meta_path
+        LOGGER.notice("Your post's text is at: {0}".format(txt_path))
+
+        signal('new_post').send(self, **event)
